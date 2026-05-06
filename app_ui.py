@@ -1,9 +1,18 @@
 import os
+import sys
 import subprocess
 import vdf
 import customtkinter as ctk
-from tkinter import messagebox
+from tkinter import messagebox, PhotoImage
 from PIL import Image
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 from steam_utils import get_steam_path, is_steam_running, kill_steam
 from vdf_utils import get_all_users, parse_shortcuts_vdf, safe_get_apps, get_playtime, save_playtime
@@ -12,6 +21,16 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Steam Non-Game Playtime Manager")
+        
+        # Set App Icon (Cross-Platform)
+        try:
+            if os.name == 'nt':
+                self.iconbitmap(resource_path("icon.ico"))
+            else:
+                img = PhotoImage(file=resource_path("icon.png"))
+                self.iconphoto(True, img)
+        except Exception as e:
+            print("Failed to load icon:", e)
         
         self.steam_path = get_steam_path()
         self.all_users = get_all_users(self.steam_path)
