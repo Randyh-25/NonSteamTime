@@ -6,7 +6,7 @@ from tkinter import messagebox
 from PIL import Image
 
 from steam_utils import get_steam_path, is_steam_running, kill_steam
-from vdf_utils import get_recent_user, parse_shortcuts_vdf, safe_get_apps, get_playtime, save_playtime
+from vdf_utils import get_all_users, parse_shortcuts_vdf, safe_get_apps, get_playtime, save_playtime
 
 class App(ctk.CTk):
     def __init__(self):
@@ -14,23 +14,35 @@ class App(ctk.CTk):
         self.title("Steam Non-Game Playtime Manager")
         
         self.steam_path = get_steam_path()
-        self.user_id = get_recent_user(self.steam_path)
+        self.all_users = get_all_users(self.steam_path)
+        
+        if not self.all_users:
+            ctk.CTkLabel(self, text="Could not find any Steam users.").pack(pady=50)
+            return
+
+        self.user_id = None
+        for u in self.all_users:
+            if u['recent']:
+                self.user_id = u['account_id']
+                break
         
         if not self.user_id:
-            ctk.CTkLabel(self, text="Could not find a recent Steam user.").pack(pady=50)
-            return
+            self.user_id = self.all_users[0]['account_id']
             
-        self.userdata_dir = os.path.join(self.steam_path, "userdata", self.user_id, "config")
-        self.shortcuts_file = os.path.join(self.userdata_dir, "shortcuts.vdf")
-        self.localconfig_file = os.path.join(self.userdata_dir, "localconfig.vdf")
-        self.grid_dir = os.path.join(self.userdata_dir, "grid")
-        
         self.games = []
         self.current_view = "List"
         self.images = [] # keep references to avoid garbage collection
         
         self.setup_ui()
-        self.cmd_load_file() # Load data initially
+        self.load_user_data(self.user_id) # Load data initially
+        
+    def load_user_data(self, account_id):
+        self.user_id = account_id
+        self.userdata_dir = os.path.join(self.steam_path, "userdata", self.user_id, "config")
+        self.shortcuts_file = os.path.join(self.userdata_dir, "shortcuts.vdf")
+        self.localconfig_file = os.path.join(self.userdata_dir, "localconfig.vdf")
+        self.grid_dir = os.path.join(self.userdata_dir, "grid")
+        self.cmd_load_file()
         
     def setup_ui(self):
         # Top Menu Bar
@@ -47,10 +59,27 @@ class App(ctk.CTk):
         ctk.CTkButton(btn_frame, text="Launch Steam", width=80, fg_color="#27ae60", hover_color="#2ecc71", command=self.cmd_launch_steam).pack(side="left", padx=5)
         ctk.CTkButton(btn_frame, text="Tutorial", width=80, fg_color="#2980b9", hover_color="#27ae60", command=self.show_tutorial).pack(side="left", padx=5)
         
+        # User Selection Dropdown
+        user_options = [f"{u['name']} ({u['account_id']})" for u in self.all_users]
+        
+        current_value = user_options[0]
+        for opt in user_options:
+            if self.user_id in opt:
+                current_value = opt
+                break
+                
+        def on_user_change(choice):
+            account_id = choice.split("(")[1].strip(")")
+            self.load_user_data(account_id)
+
+        self.user_dropdown = ctk.CTkOptionMenu(self.top_bar, values=user_options, command=on_user_change)
+        self.user_dropdown.set(current_value)
+        self.user_dropdown.pack(side="right", padx=10, pady=10)
+
         # View Toggle
         self.view_toggle = ctk.CTkSegmentedButton(self.top_bar, values=["List View", "Grid View"], command=self.switch_view)
         self.view_toggle.set("List View")
-        self.view_toggle.pack(side="right", padx=20, pady=10)
+        self.view_toggle.pack(side="right", padx=10, pady=10)
         
         # Main content area
         self.scroll_frame = ctk.CTkScrollableFrame(self)
@@ -146,8 +175,9 @@ class App(ctk.CTk):
 
     def _render_list_view(self):
         for game in self.games:
-            appid = game['appid']
-            playtime = get_playtime(self.localconfig_apps, appid)
+            appid_unsigned = game['appid_unsigned']
+            appid_signed = game['appid_signed']
+            playtime = get_playtime(self.localconfig_apps, appid_signed)
             hours = playtime / 60.0
             
             card = ctk.CTkFrame(self.scroll_frame)
@@ -156,7 +186,7 @@ class App(ctk.CTk):
             # Use columns with weights to push edit button right
             card.grid_columnconfigure(2, weight=1)
             
-            artwork_path = self.get_game_artwork(appid, is_logo=True)
+            artwork_path = self.get_game_artwork(appid_unsigned, is_logo=True)
             if artwork_path:
                 try:
                     img = Image.open(artwork_path)
@@ -190,14 +220,15 @@ class App(ctk.CTk):
 
         row, col = 0, 0
         for game in self.games:
-            appid = game['appid']
-            playtime = get_playtime(self.localconfig_apps, appid)
+            appid_unsigned = game['appid_unsigned']
+            appid_signed = game['appid_signed']
+            playtime = get_playtime(self.localconfig_apps, appid_signed)
             hours = playtime / 60.0
             
             card = ctk.CTkFrame(self.scroll_frame)
             card.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
             
-            artwork_path = self.get_game_artwork(appid, is_logo=False)
+            artwork_path = self.get_game_artwork(appid_unsigned, is_logo=False)
             if artwork_path:
                 try:
                     img = Image.open(artwork_path)
@@ -258,7 +289,7 @@ class App(ctk.CTk):
                 if is_steam_running():
                     kill_steam()
                     
-                save_playtime(self.localconfig_file, game['appid'], new_mins)
+                save_playtime(self.localconfig_file, game['appid_signed'], new_mins)
                 self.cmd_load_file() # reload data into memory then render
                 dialog.destroy()
             except ValueError:

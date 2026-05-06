@@ -2,19 +2,24 @@ import os
 import vdf
 from tkinter import messagebox
 
-def get_recent_user(steam_path):
+def get_all_users(steam_path):
     loginusers_path = os.path.join(steam_path, "config", "loginusers.vdf")
     if not os.path.exists(loginusers_path):
-        return None
+        return []
     
     with open(loginusers_path, 'r', encoding='utf-8') as f:
         data = vdf.load(f)
         
     users = data.get("users", {})
+    user_list = []
     for steam_id, info in users.items():
-        if info.get("MostRecent") == "1":
-            return str(int(steam_id) & 0xFFFFFFFF)
-    return None
+        user_list.append({
+            'steam_id64': steam_id,
+            'account_id': str(int(steam_id) & 0xFFFFFFFF),
+            'name': info.get("PersonaName", "Unknown"),
+            'recent': info.get("MostRecent") == "1"
+        })
+    return user_list
 
 def parse_shortcuts_vdf(filepath):
     if not os.path.exists(filepath):
@@ -31,10 +36,19 @@ def parse_shortcuts_vdf(filepath):
             if isinstance(val, dict) and 'AppName' in val:
                 appid = val.get('appid')
                 if appid:
-                    unsigned_appid = str(appid & 0xFFFFFFFF)
+                    raw_id = int(appid)
+                    unsigned_id = raw_id & 0xFFFFFFFF
+                    unsigned_id_str = str(unsigned_id)
+                    
+                    signed_id = unsigned_id
+                    if signed_id >= 0x80000000:
+                        signed_id -= 0x100000000
+                    signed_id_str = str(signed_id)
+                    
                     res.append({
                         'app_name': val['AppName'],
-                        'appid': unsigned_appid,
+                        'appid_unsigned': unsigned_id_str,
+                        'appid_signed': signed_id_str,
                         'exe': val.get('exe', '')
                     })
         return res
