@@ -1,6 +1,13 @@
-# Steam Non-Game Playtime Manager
+<div align="center">
+  <img src="icon.png" alt="NonSteamTime Logo" width="150" />
+  <h1>Steam Non-Game Playtime Manager</h1>
+  <p>A simple graphical tool to manage and edit the playtime for your Non-Steam games added to your Steam Library.</p>
 
-A simple graphical tool to manage and edit the playtime for your Non-Steam games added to your Steam Library.
+  <p>
+    <a href="https://github.com/Randyh-25/NonSteamTime/releases"><strong>Download Latest Release (.exe)</strong></a> ·
+    <a href="https://github.com/Randyh-25/NonSteamTime/issues">Report Bug</a>
+  </p>
+</div>
 
 ---
 
